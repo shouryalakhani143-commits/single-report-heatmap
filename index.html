@@ -59,7 +59,7 @@
     const DESTINATION = { lat: 25.293416, lng: 55.451842 }; // Dubai example
 
     // How “strong” the heat is (0..1)
-    const INTENSITY = 0.9;
+    const INTENSITY = 5;
 
     // Initial zoom level
     const START_ZOOM = 12;
@@ -78,7 +78,7 @@
 
     // Marker (optional but useful)
     const marker = L.marker([DESTINATION.lat, DESTINATION.lng]).addTo(map)
-      .bindPopup("Destination").openPopup();
+      .bindPopup("Report 1").openPopup();
 
     // Heat data:
     // Format: [lat, lng, intensity]
