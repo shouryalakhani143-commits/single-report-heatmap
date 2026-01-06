@@ -30,25 +30,58 @@
   const lat = parseFloat(params.get("lat"));
   const lng = parseFloat(params.get("lng"));
 
-  // Default to Sharjah if params missing
+  // Fallback center (Sharjah)
   const centerLat = isFinite(lat) ? lat : 25.346;
   const centerLng = isFinite(lng) ? lng : 55.420;
 
   // Create map
-  const map = L.map("map").setView([centerLat, centerLng], 14);
+  const map = L.map("map").setView([centerLat, centerLng], 12);
 
-  // OpenStreetMap tiles (no API key needed)
+  // Base map tiles
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "© OpenStreetMap"
   }).addTo(map);
 
-  // If valid coordinates exist → show heat point
+  let heatLayer;
+
+  function updateHeat() {
+    const zoom = map.getZoom();
+
+    // Radius scales with zoom (key fix)
+    const radius = Math.max(25, zoom * 6);
+
+    if (heatLayer) {
+      map.removeLayer(heatLayer);
+    }
+
+    heatLayer = L.heatLayer(
+      [[lat, lng, 1.0]],
+      {
+        radius: radius,
+        blur: radius * 0.8,
+        maxZoom: 19
+      }
+    ).addTo(map);
+  }
+
+  // Only draw if valid coordinates exist
   if (isFinite(lat) && isFinite(lng)) {
-    L.heatLayer([[lat, lng, 0.8]], {
-      radius: 35,
-      blur: 25
+
+    // Heat layer (dynamic)
+    updateHeat();
+
+    // Always-visible glow circle (fallback)
+    L.circle([lat, lng], {
+      radius: 600,          // meters
+      color: "red",
+      fillColor: "red",
+      fillOpacity: 0.15,
+      weight: 1
     }).addTo(map);
+
+    // Update heat when zoom changes
+    map.on("zoomend", updateHeat);
   }
 </script>
 
