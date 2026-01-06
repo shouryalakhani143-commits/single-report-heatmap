@@ -1,89 +1,119 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Single Report Heatmap</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Destination Heatmap</title>
 
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
   />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <!-- Leaflet Heat -->
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
   <style>
-    html, body, #map {
-      height: 100%;
-      margin: 0;
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; }
+    .info {
+      position: absolute; z-index: 999;
+      top: 12px; left: 12px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+      max-width: 320px;
+    }
+    .info b { display:block; margin-bottom: 4px; }
+    .btn {
+      margin-top: 8px;
+      padding: 6px 10px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
     }
   </style>
 </head>
+
 <body>
+  <div class="info">
+    <b>Destination Heatmap</b>
+    <div id="coords"></div>
+    <button class="btn" id="recenter">Recenter</button>
+  </div>
+  <div id="map"></div>
 
-<div id="map"></div>
+  <script>
+    // ✅ CHANGE THIS to your destination coordinates
+    const DESTINATION = { lat: 25.293416, lng: 55.451842 }; // Dubai example
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    // How “strong” the heat is (0..1)
+    const INTENSITY = 0.9;
 
-<script>
-  // Read coordinates from URL
-  const params = new URLSearchParams(window.location.search);
-  const lat = parseFloat(params.get("lat"));
-  const lng = parseFloat(params.get("lng"));
+    // Initial zoom level
+    const START_ZOOM = 12;
 
-  // Fallback center (Sharjah)
-  const centerLat = isFinite(lat) ? lat : 25.346;
-  const centerLng = isFinite(lng) ? lng : 55.420;
+    document.getElementById("coords").textContent =
+      `Lat: ${DESTINATION.lat}, Lng: ${DESTINATION.lng}`;
 
-  // Create map
-  const map = L.map("map").setView([centerLat, centerLng], 12);
+    // Create map
+    const map = L.map('map', { preferCanvas: true }).setView([DESTINATION.lat, DESTINATION.lng], START_ZOOM);
 
-  // Base map tiles
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "© OpenStreetMap"
-  }).addTo(map);
-
-  let heatLayer;
-
-  function updateHeat() {
-    const zoom = map.getZoom();
-
-    // Radius scales with zoom (key fix)
-    const radius = Math.max(25, zoom * 6);
-
-    if (heatLayer) {
-      map.removeLayer(heatLayer);
-    }
-
-    heatLayer = L.heatLayer(
-      [[lat, lng, 1.0]],
-      {
-        radius: radius,
-        blur: radius * 0.8,
-        maxZoom: 19
-      }
-    ).addTo(map);
-  }
-
-  // Only draw if valid coordinates exist
-  if (isFinite(lat) && isFinite(lng)) {
-
-    // Heat layer (dynamic)
-    updateHeat();
-
-    // Always-visible glow circle (fallback)
-    L.circle([lat, lng], {
-      radius: 600,          // meters
-      color: "red",
-      fillColor: "red",
-      fillOpacity: 0.15,
-      weight: 1
+    // Basemap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Update heat when zoom changes
-    map.on("zoomend", updateHeat);
-  }
-</script>
+    // Marker (optional but useful)
+    const marker = L.marker([DESTINATION.lat, DESTINATION.lng]).addTo(map)
+      .bindPopup("Destination").openPopup();
 
+    // Heat data:
+    // Format: [lat, lng, intensity]
+    const heatPoints = [
+      [DESTINATION.lat, DESTINATION.lng, INTENSITY]
+    ];
+
+    // Heat layer settings
+    // NOTE: radius changes with zoom (Leaflet behavior). We compensate below.
+    const heat = L.heatLayer(heatPoints, {
+      radius: 35,      // base radius (we will auto-scale it)
+      blur: 25,
+      maxZoom: 19
+    }).addTo(map);
+
+    // Keep the blob visible at ANY zoom:
+    // As you zoom out, increase radius so it doesn't become tiny.
+    const baseRadius = 35;
+
+    function adjustHeatRadius() {
+      const z = map.getZoom();
+      // Bigger radius when zoomed out; smaller when zoomed in.
+      // Tweak these numbers if you want more/less visible blob.
+      const scale = Math.max(1, 16 - z);   // zoom 12 => 4, zoom 5 => 11, zoom 17 => 1
+      const newRadius = baseRadius * scale;
+      heat.setOptions({ radius: newRadius });
+    }
+
+    map.on('zoomend', adjustHeatRadius);
+    adjustHeatRadius();
+
+    document.getElementById("recenter").addEventListener("click", () => {
+      map.setView([DESTINATION.lat, DESTINATION.lng], START_ZOOM);
+      marker.openPopup();
+    });
+  </script>
 </body>
 </html>
